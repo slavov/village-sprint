@@ -197,21 +197,33 @@
   .rs-item.duetoday .due { color: #7A5A0D; background: var(--gold-soft); border: 1px solid var(--gold); padding: 2px 7px; border-radius: 999px; }
   .rs-item.overdue .due { color: #fff; background: var(--danger); padding: 2px 7px; border-radius: 999px; }
 
-  /* Funnel diagnostic */
-  .fn-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); }
-  .fn-row .co { flex: 1; font-weight: 700; font-size: 14px; }
-  .fn-row .co .nt { display: block; font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--ink-soft); }
-  .fn-row select {
-    border: 1.5px solid var(--line); border-radius: 8px; background: var(--paper);
-    font-family: var(--mono); font-size: 11.5px; padding: 7px 4px; color: var(--ink); max-width: 150px;
+  /* Today's problem + timer */
+  .probinput {
+    width: 100%; border: 1.5px solid var(--line); border-radius: 9px;
+    background: var(--paper); padding: 10px; font-family: var(--sans);
+    font-size: 14.5px; font-weight: 700; color: var(--ink); margin-top: 6px;
   }
-  .fn-row select.unset { border-color: var(--gold); }
-  .fn-row select:focus-visible { outline: 2px solid var(--pine); }
-  button.x { border: none; background: none; color: var(--ink-soft); font-size: 16px; cursor: pointer; padding: 2px 6px; }
-  button.x:focus-visible { outline: 2px solid var(--gold); border-radius: 6px; }
-  .fn-sum { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--pine-soft); font-size: 13px; }
-  .fn-sum .bars { font-family: var(--mono); font-size: 11.5px; margin-bottom: 8px; color: var(--pine); }
-  .fn-sum .verdict { font-weight: 700; }
+  .probinput:focus { outline: 2px solid var(--pine); outline-offset: 1px; border-color: var(--pine); }
+  .timerbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-top: 14px; padding: 10px 12px;
+    border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper);
+  }
+  .tdisp {
+    font-family: var(--mono); font-weight: 800; font-size: 26px;
+    color: var(--pine); letter-spacing: 0.04em; min-width: 88px;
+  }
+  .tdisp.done { color: var(--danger); animation: tflash 1s ease-in-out 3; }
+  @keyframes tflash { 50% { opacity: 0.25; } }
+  .tbtns { display: flex; gap: 6px; }
+  .thint { font-family: var(--mono); font-size: 10px; color: var(--ink-soft); margin-top: 6px; }
+  details.steps { margin-top: 12px; border: 1.5px dashed var(--line); border-radius: 10px; padding: 10px 12px; }
+  details.steps summary {
+    cursor: pointer; font-family: var(--mono); font-size: 11.5px;
+    font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pine);
+  }
+  details.steps ol { margin: 10px 0 2px 18px; font-size: 13.5px; }
+  details.steps li { margin-bottom: 6px; }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -244,7 +256,29 @@
   <div class="card">
     <h2>Today <span class="meta" id="todayLabel"></span></h2>
     <div id="fridayNote" class="fridaynote" style="display:none">Revisit day: re-solve one old problem timed · re-read notes · apply to one job</div>
+    <label class="f" for="probInput">Today's problem</label>
+    <input type="text" id="probInput" class="probinput" placeholder="e.g. Rotting Oranges" aria-label="today's problem">
+    <div class="timerbar">
+      <div class="tdisp" id="timerDisp">--:--</div>
+      <div class="tbtns">
+        <button class="mini tstart" data-mins="20">20m</button>
+        <button class="mini tstart" data-mins="60">60m</button>
+        <button class="mini tstart" data-mins="75">75m</button>
+        <button class="mini" id="timerStop" aria-label="stop timer">✕</button>
+      </div>
+    </div>
+    <div class="thint">20m = stuck rule → solution + re-solve queue · 60/75m = session block</div>
     <div id="checklist"></div>
+    <details class="steps">
+      <summary>The 5-step framework</summary>
+      <ol>
+        <li><b>Repeat</b> the problem in your own words</li>
+        <li><b>Ask 2–3 clarifying questions</b> — constraints, edge cases, input size</li>
+        <li><b>Think aloud</b> — state the approach and why, before any code</li>
+        <li><b>Narrate while coding</b> — no silent stretches</li>
+        <li><b>Trace a small example</b> when stuck — line by line, out loud</li>
+      </ol>
+    </details>
     <span class="pill" id="statusPill">Not started</span>
     <div class="streakline">
       <div><div class="k">Streak</div><div class="v" id="streakVal">0</div></div>
@@ -283,16 +317,6 @@
     <div id="rsList"></div>
   </div>
 
-  <div class="card">
-    <h2>Funnel diagnostic <span class="meta">where each process died</span></h2>
-    <div id="fnList"></div>
-    <div class="addrow">
-      <input type="text" id="fnName" placeholder="add a company" aria-label="company name">
-      <button class="mini" id="fnAdd">Add</button>
-    </div>
-    <div class="fn-sum" id="fnSum"></div>
-  </div>
-
   <div class="kaizen">
     Done = one problem + one Kotlin rewrite.<br>
     Everything beyond that is bonus.
@@ -323,21 +347,11 @@
     { id: 'sentences', name: 'First-sentence drills', total: 4, done: 0, type: 'count', sub: 'stories #1 #2 #5 #6' }
   ];
 
-  const STAGES = ['CV screen', 'Recruiter screen', 'Technical', 'Final round', 'Offer stage'];
-  const DEFAULT_FUNNEL = [
-    { company: 'Adyen', stage: 'Recruiter screen', note: '' },
-    { company: 'Mollie', stage: '', note: '' },
-    { company: 'Katanox', stage: 'Technical', note: 'constraint clarification' },
-    { company: 'eBay', stage: '', note: '"very close"' },
-    { company: 'Elsevier', stage: '', note: 'referral' }
-  ];
-
   let state = {
     days: {},
     tracks: DEFAULT_TRACKS.map(t => ({ id: t.id, done: t.done })),
     resolve: [],
-    resolved: 0,
-    funnel: DEFAULT_FUNNEL.map(f => ({ company: f.company, stage: f.stage, note: f.note }))
+    resolved: 0
   };
   let storageOk = true;
 
@@ -384,10 +398,11 @@
         if (parsed && parsed.tracks) state.tracks = parsed.tracks;
         if (parsed && Array.isArray(parsed.resolve)) state.resolve = parsed.resolve;
         if (parsed && typeof parsed.resolved === 'number') state.resolved = parsed.resolved;
-        if (parsed && Array.isArray(parsed.funnel)) state.funnel = parsed.funnel;
+        if (parsed && parsed.timer && parsed.timer.end > Date.now()) state.timer = parsed.timer;
       }
     } catch (e) { /* key missing on first run — fine */ }
     render();
+    if (state.timer && typeof runTimer === 'function') runTimer();
   }
 
   async function persist() {
@@ -448,13 +463,15 @@
     list.innerHTML = '';
     CHECKS.forEach(c => {
       const label = c.id === 'third' ? thirdLabel(activeKey) : c.t;
+      let sub = c.s;
+      if (c.id === 'algo' && ds.problem) sub = '→ ' + esc(ds.problem) + ' · ' + c.s;
       const row = document.createElement('div');
       row.className = 'check-row' + (ds[c.id] ? ' on' : '');
       row.setAttribute('role', 'checkbox');
       row.setAttribute('aria-checked', ds[c.id] ? 'true' : 'false');
       row.tabIndex = 0;
       row.innerHTML = '<div class="box">✓</div><div class="txt"><div class="t">' + label +
-        '</div><div class="s">' + c.s + '</div></div>';
+        '</div><div class="s">' + sub + '</div></div>';
       const toggle = () => {
         const cur = dayState(activeKey);
         cur[c.id] = !cur[c.id];
@@ -465,6 +482,10 @@
       row.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); } });
       list.appendChild(row);
     });
+
+    // today's problem input
+    const pInp = document.getElementById('probInput');
+    if (document.activeElement !== pInp) pInp.value = ds.problem || '';
 
     // status pill
     const pill = document.getElementById('statusPill');
@@ -543,7 +564,6 @@
     });
 
     renderResolve();
-    renderFunnel();
   }
 
   function upsertTrack(st) {
@@ -601,63 +621,6 @@
     persist(); render();
   }
 
-  function renderFunnel() {
-    const list = document.getElementById('fnList');
-    list.innerHTML = '';
-    (state.funnel || []).forEach((f, idx) => {
-      const row = document.createElement('div');
-      row.className = 'fn-row';
-      const co = document.createElement('div');
-      co.className = 'co';
-      co.innerHTML = esc(f.company) + (f.note ? '<span class="nt">' + esc(f.note) + '</span>' : '');
-      const sel = document.createElement('select');
-      sel.className = f.stage ? '' : 'unset';
-      sel.setAttribute('aria-label', f.company + ' — stage where it died');
-      const first = document.createElement('option');
-      first.value = ''; first.textContent = '— died at…';
-      sel.appendChild(first);
-      STAGES.forEach(s => {
-        const o = document.createElement('option');
-        o.value = s; o.textContent = s;
-        if (f.stage === s) o.selected = true;
-        sel.appendChild(o);
-      });
-      sel.onchange = () => { f.stage = sel.value; persist(); render(); };
-      const del = document.createElement('button');
-      del.className = 'x'; del.textContent = '×';
-      del.setAttribute('aria-label', 'remove ' + f.company);
-      del.onclick = () => { state.funnel.splice(idx, 1); persist(); render(); };
-      row.appendChild(co); row.appendChild(sel); row.appendChild(del);
-      list.appendChild(row);
-    });
-
-    const withStage = (state.funnel || []).filter(f => f.stage);
-    const sum = document.getElementById('fnSum');
-    if (withStage.length === 0) {
-      sum.innerHTML = 'Set where each process died — the read appears here.';
-      return;
-    }
-    const counts = {};
-    STAGES.forEach(s => { counts[s] = 0; });
-    withStage.forEach(f => { counts[f.stage]++; });
-    let bars = '';
-    STAGES.forEach(s => {
-      if (counts[s] > 0) bars += s + ' ' + '█'.repeat(counts[s]) + ' ' + counts[s] + '<br>';
-    });
-    const pre = counts['CV screen'] + counts['Recruiter screen'];
-    const tech = counts['Technical'];
-    const late = counts['Final round'] + counts['Offer stage'];
-    let verdict;
-    if (pre > tech && pre > late) {
-      verdict = 'Most processes die before the technical → the bottleneck is positioning (CV, pitch, targeting), not more LeetCode.';
-    } else if (tech >= pre && tech >= late) {
-      verdict = 'Most die at the technical → execution under pressure. Mocks + the 5-step framework are the fix, not more theory.';
-    } else {
-      verdict = 'Most die at the final stage → you are close. Volume and consistency, not a skill gap.';
-    }
-    sum.innerHTML = '<div class="bars">' + bars + '</div><div class="verdict">' + verdict + '</div>';
-  }
-
   document.getElementById('saveBtn').addEventListener('click', () => {
     const tKey = DAYS.includes(todayIso()) ? todayIso() : DAYS[0];
     const cur = dayState(tKey);
@@ -677,15 +640,56 @@
   document.getElementById('rsAdd2').addEventListener('click', () => addResolve(2));
   document.getElementById('rsAdd3').addEventListener('click', () => addResolve(3));
   document.getElementById('rsName').addEventListener('keydown', e => { if (e.key === 'Enter') addResolve(2); });
-  document.getElementById('fnAdd').addEventListener('click', () => {
-    const inp = document.getElementById('fnName');
-    const n = inp.value.trim();
-    if (!n) { inp.focus(); return; }
-    state.funnel = state.funnel || [];
-    state.funnel.push({ company: n, stage: '', note: '' });
-    inp.value = '';
+
+  // Today's problem
+  document.getElementById('probInput').addEventListener('change', () => {
+    const tKey = DAYS.includes(todayIso()) ? todayIso() : DAYS[0];
+    const cur = dayState(tKey);
+    cur.problem = document.getElementById('probInput').value.trim();
+    state.days[tKey] = cur;
     persist(); render();
   });
+
+  // Timer
+  let timerInterval = null;
+  function updateTimerDisplay() {
+    const el = document.getElementById('timerDisp');
+    const t = state.timer;
+    if (!t || !t.end) {
+      el.textContent = '--:--'; el.classList.remove('done');
+      clearInterval(timerInterval); timerInterval = null;
+      return;
+    }
+    const rem = Math.max(0, Math.round((t.end - Date.now()) / 1000));
+    const m = Math.floor(rem / 60), s = rem % 60;
+    el.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    if (rem === 0) {
+      clearInterval(timerInterval); timerInterval = null;
+      el.classList.add('done');
+      el.textContent = t.mins === 20 ? 'STOP' : 'DONE';
+      if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+      state.timer = null;
+      persist();
+    }
+  }
+  function runTimer() {
+    clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimerDisplay, 1000);
+    updateTimerDisplay();
+  }
+  document.querySelectorAll('.tstart').forEach(b => {
+    b.addEventListener('click', () => {
+      const mins = parseInt(b.getAttribute('data-mins'), 10);
+      state.timer = { end: Date.now() + mins * 60000, mins: mins };
+      document.getElementById('timerDisp').classList.remove('done');
+      persist(); runTimer();
+    });
+  });
+  document.getElementById('timerStop').addEventListener('click', () => {
+    state.timer = null;
+    persist(); updateTimerDisplay();
+  });
+  if (state.timer) runTimer();
 
   load();
 })();

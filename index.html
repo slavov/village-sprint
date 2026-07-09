@@ -685,6 +685,7 @@
       persist(); runTimer();
     });
   });
+  
   document.getElementById('timerStop').addEventListener('click', () => {
     state.timer = null;
     persist(); updateTimerDisplay();

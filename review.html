@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1F4A3C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sprint">
+<title>Review — Village Sprint</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Archivo:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header-row">
+    <div>
+      <div class="eyebrow">Village Sprint</div>
+      <h1>Review</h1>
+    </div>
+    <div class="hstats">
+      <div><div class="num" id="resolvedVal">0</div><div class="lbl">re-solved</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Randomizer <span class="meta">Friday drill</span></h2>
+    <p style="font-size:13.5px; margin-top:8px;">Picks one solved problem for a cold re-solve. Oldest reviews are weighted heavier — the ones you're most likely to have forgotten.</p>
+    <button class="save" id="pickBtn">♞ Pick one</button>
+    <div id="randTarget"></div>
+  </div>
+
+  <div class="card">
+    <h2>Re-solve queue <span class="meta" id="rsMeta"></span></h2>
+    <div class="addrow">
+      <input type="text" id="rsName" placeholder="problem you read the solution for" aria-label="problem name">
+      <button class="mini" id="rsAdd2">+2d</button>
+      <button class="mini" id="rsAdd3">+3d</button>
+    </div>
+    <div id="rsList"></div>
+  </div>
+
+  <div class="card">
+    <h2>Evidence log <span class="meta" id="evCount"></span></h2>
+    <div id="entries"><div class="empty">No entries yet. Each one is evidence against "everyone rejected me."</div></div>
+  </div>
+
+</div>
+
+<nav class="nav">
+  <a href="index.html" data-page="today"><span class="ico">♞</span>Today</a>
+  <a href="problems.html" data-page="problems"><span class="ico">⌗</span>Problems</a>
+  <a href="review.html" data-page="review"><span class="ico">↻</span>Review</a>
+</nav>
+
+<script src="js/store.js"></script>
+<script>
+(function () {
+  VS.load();
+  VS.markNav('review');
+  const S = VS.state();
+  let lastPickId = null;
+
+  function pickWeighted() {
+    const probs = S.problems || [];
+    if (probs.length === 0) return null;
+    const pool = probs.length > 1 ? probs.filter(p => p.id !== lastPickId) : probs;
+    const t = Date.now();
+    // weight = days since last touch (review or solve), min 1
+    const weights = pool.map(p => {
+      const last = p.lastReview || p.date;
+      const days = Math.max(1, (t - new Date(last + 'T12:00:00').getTime()) / 86400000);
+      return days;
+    });
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < pool.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return pool[i];
+    }
+    return pool[pool.length - 1];
+  }
+
+  function showPick(p) {
+    const el = document.getElementById('randTarget');
+    if (!p) {
+      el.innerHTML = '<div class="empty">No problems in the log yet — add them on the Problems tab.</div>';
+      return;
+    }
+    lastPickId = p.id;
+    const linkBtn = p.url
+      ? '<a class="mini" style="text-decoration:none; padding:8px 12px; border:1.5px solid var(--pine); border-radius:9px; color:var(--pine); font-family:var(--mono); font-size:12px; font-weight:700;" href="' + VS.esc(p.url) + '" target="_blank" rel="noopener">Open problem ↗</a>'
+      : '';
+    el.innerHTML =
+      '<div class="rand-card">' +
+      '<div class="rn">' + VS.esc(p.name) + '</div>' +
+      '<div class="rt">' + VS.esc(p.topic) + ' · ' + VS.esc(p.diff) +
+      ' · solved ' + VS.fmtDate(p.date) +
+      (p.lastReview ? ' · last re-solved ' + VS.fmtDate(p.lastReview) : ' · never re-solved') + '</div>' +
+      (p.notes ? '<div class="rt" style="margin-top:6px;">⚠ ' + VS.esc(p.notes) + '</div>' : '') +
+      '<div class="racts">' + linkBtn +
+      '<button class="mini" id="rdone">Re-solved ✓</button>' +
+      '<button class="mini" id="rskip">Pick another</button></div>' +
+      '</div>';
+    document.getElementById('rdone').onclick = () => {
+      p.lastReview = VS.todayIso();
+      S.resolved = (S.resolved || 0) + 1;
+      VS.save(); render();
+      document.getElementById('randTarget').innerHTML =
+        '<div class="empty" style="color:var(--pine);">Logged. Cold re-solve counts double — nice.</div>';
+    };
+    document.getElementById('rskip').onclick = () => showPick(pickWeighted());
+  }
+
+  function render() {
+    document.getElementById('resolvedVal').textContent = S.resolved || 0;
+
+    // re-solve queue
+    const t = VS.todayIso();
+    const list = document.getElementById('rsList');
+    const items = (S.resolve || []).slice().sort((a, b) => (a.due < b.due ? -1 : 1));
+    document.getElementById('rsMeta').textContent = items.length + ' queued';
+    if (items.length === 0) {
+      list.innerHTML = '<div class="empty">Empty. When the 20-minute rule fires — read the solution, park the problem here.</div>';
+    } else {
+      list.innerHTML = '';
+      items.forEach(it => {
+        const row = document.createElement('div');
+        let dueTxt;
+        if (it.due < t) { row.className = 'rs-item overdue'; dueTxt = 'overdue'; }
+        else if (it.due === t) { row.className = 'rs-item duetoday'; dueTxt = 'due today'; }
+        else { row.className = 'rs-item'; dueTxt = VS.fmtDate(it.due); }
+        row.innerHTML = '<div class="nm">' + VS.esc(it.n) + '</div><div class="due">' + dueTxt + '</div>';
+        const ok = document.createElement('button');
+        ok.className = 'mini'; ok.textContent = '✓';
+        ok.setAttribute('aria-label', 're-solved ' + it.n);
+        ok.onclick = () => {
+          S.resolve = S.resolve.filter(x => x !== it);
+          S.resolved = (S.resolved || 0) + 1;
+          // stamp lastReview if it matches a logged problem
+          const match = (S.problems || []).find(p => p.name.toLowerCase() === it.n.toLowerCase());
+          if (match) match.lastReview = VS.todayIso();
+          VS.save(); render();
+        };
+        row.appendChild(ok);
+        list.appendChild(row);
+      });
+    }
+
+    // evidence log
+    const entriesEl = document.getElementById('entries');
+    const withNotes = VS.DAYS.filter(k => S.days[k] && S.days[k].note &&
+      (S.days[k].note.well || S.days[k].note.fix)).reverse();
+    document.getElementById('evCount').textContent = withNotes.length + ' entries';
+    if (withNotes.length === 0) {
+      entriesEl.innerHTML = '<div class="empty">No entries yet. Each one is evidence against "everyone rejected me."</div>';
+    } else {
+      entriesEl.innerHTML = '';
+      withNotes.forEach(k => {
+        const n = S.days[k].note;
+        const e = document.createElement('div');
+        e.className = 'entry';
+        e.innerHTML = '<div class="d">' + VS.fmtDate(k) + '</div>' +
+          (n.well ? '<p><b>Well:</b> ' + VS.esc(n.well) + '</p>' : '') +
+          (n.fix ? '<p><b>Fix:</b> ' + VS.esc(n.fix) + '</p>' : '');
+        entriesEl.appendChild(e);
+      });
+    }
+  }
+
+  function addResolve(daysAhead) {
+    const inp = document.getElementById('rsName');
+    const n = inp.value.trim();
+    if (!n) { inp.focus(); return; }
+    const d = new Date(); d.setDate(d.getDate() + daysAhead);
+    S.resolve = S.resolve || [];
+    S.resolve.push({ n: n, due: VS.iso(d) });
+    inp.value = '';
+    VS.save(); render();
+  }
+  document.getElementById('rsAdd2').addEventListener('click', () => addResolve(2));
+  document.getElementById('rsAdd3').addEventListener('click', () => addResolve(3));
+  document.getElementById('rsName').addEventListener('keydown', e => { if (e.key === 'Enter') addResolve(2); });
+  document.getElementById('pickBtn').addEventListener('click', () => showPick(pickWeighted()));
+
+  render();
+})();
+</script>
+</body>
+</html>

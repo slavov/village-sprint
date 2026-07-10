@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1F4A3C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sprint">
+<title>Problems — Village Sprint</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Archivo:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header-row">
+    <div>
+      <div class="eyebrow">Village Sprint</div>
+      <h1>Problems</h1>
+    </div>
+    <div class="hstats">
+      <div><div class="num" id="probCount">0</div><div class="lbl">solved</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Log a solved problem</h2>
+    <div class="formgrid">
+      <div class="full">
+        <label class="f" for="pName">Problem name</label>
+        <input type="text" id="pName" placeholder="e.g. Rotting Oranges">
+      </div>
+      <div class="full">
+        <label class="f" for="pUrl">Link (HelloInterview)</label>
+        <input type="url" id="pUrl" placeholder="https://www.hellointerview.com/...">
+      </div>
+      <div>
+        <label class="f" for="pTopic">Topic</label>
+        <select id="pTopic"></select>
+      </div>
+      <div>
+        <label class="f" for="pDiff">Difficulty</label>
+        <select id="pDiff">
+          <option>Easy</option>
+          <option selected>Medium</option>
+          <option>Hard</option>
+        </select>
+      </div>
+      <div class="full">
+        <label class="f" for="pNotes">Notes / pitfall to remember</label>
+        <textarea id="pNotes" placeholder="e.g. forgot the visited set → infinite loop"></textarea>
+      </div>
+    </div>
+    <button class="save" id="pAdd">Add problem</button>
+    <div class="saved-flash" id="pFlash"></div>
+    <div class="thint">Adding a problem also ticks today's "Algorithm problem" box and bumps the matching track.</div>
+  </div>
+
+  <div class="card">
+    <h2>Solved <span class="meta" id="listMeta"></span></h2>
+    <div id="probList"><div class="empty">Nothing logged yet.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Tracks <span class="meta">sprint scope</span></h2>
+    <div id="tracks"></div>
+  </div>
+
+</div>
+
+<nav class="nav">
+  <a href="index.html" data-page="today"><span class="ico">♞</span>Today</a>
+  <a href="problems.html" data-page="problems"><span class="ico">⌗</span>Problems</a>
+  <a href="review.html" data-page="review"><span class="ico">↻</span>Review</a>
+</nav>
+
+<script src="js/store.js"></script>
+<script>
+(function () {
+  VS.load();
+  VS.markNav('problems');
+  const S = VS.state();
+
+  // topic select
+  const topicSel = document.getElementById('pTopic');
+  VS.TOPICS.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t;
+    topicSel.appendChild(o);
+  });
+
+  function render() {
+    const probs = (S.problems || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+    document.getElementById('probCount').textContent = probs.length;
+    document.getElementById('listMeta').textContent = probs.length + ' problems';
+    const list = document.getElementById('probList');
+    if (probs.length === 0) {
+      list.innerHTML = '<div class="empty">Nothing logged yet.</div>';
+    } else {
+      list.innerHTML = '';
+      probs.forEach(p => {
+        const el = document.createElement('div');
+        el.className = 'prob';
+        const nameHtml = p.url
+          ? '<a href="' + VS.esc(p.url) + '" target="_blank" rel="noopener">' + VS.esc(p.name) + '</a>'
+          : VS.esc(p.name);
+        el.innerHTML =
+          '<div class="top"><span class="nm">' + nameHtml + '</span>' +
+          '<span class="chip">' + VS.esc(p.topic) + '</span>' +
+          '<span class="chip gold">' + VS.esc(p.diff) + '</span></div>' +
+          '<div class="sub">' + VS.fmtDate(p.date) +
+          (p.lastReview ? ' · re-solved ' + VS.fmtDate(p.lastReview) : '') + '</div>' +
+          (p.notes ? '<div class="notes">' + VS.esc(p.notes) + '</div>' : '');
+        const acts = document.createElement('div');
+        acts.className = 'acts';
+        const q = document.createElement('button');
+        q.className = 'mini'; q.textContent = 'Queue re-solve +2d';
+        q.onclick = () => {
+          const d = new Date(); d.setDate(d.getDate() + 2);
+          S.resolve = S.resolve || [];
+          S.resolve.push({ n: p.name, due: VS.iso(d) });
+          VS.save();
+          q.textContent = 'Queued ✓'; q.disabled = true;
+        };
+        const del = document.createElement('button');
+        del.className = 'x'; del.textContent = '×';
+        del.setAttribute('aria-label', 'delete ' + p.name);
+        del.onclick = () => {
+          if (!confirm('Delete "' + p.name + '" from the log?')) return;
+          S.problems = S.problems.filter(x => x.id !== p.id);
+          VS.save(); render();
+        };
+        acts.appendChild(q); acts.appendChild(del);
+        el.appendChild(acts);
+        list.appendChild(el);
+      });
+    }
+
+    // tracks
+    const tr = document.getElementById('tracks');
+    tr.innerHTML = '';
+    VS.DEFAULT_TRACKS.forEach(def => {
+      const st = S.tracks.find(x => x.id === def.id) || { id: def.id, done: 0 };
+      const row = document.createElement('div');
+      row.className = 'track' + (st.done >= def.total ? ' done-track' : '');
+      const info = document.createElement('div');
+      info.style.flex = '1';
+      info.innerHTML = '<div class="name">' + def.name + '</div>' +
+        (def.sub ? '<div class="sub">' + def.sub + '</div>' : '') +
+        '<div class="barwrap"><div class="bar" style="width:' + Math.round(100 * st.done / def.total) + '%"></div></div>';
+      const ctr = document.createElement('div');
+      ctr.className = 'counter';
+      const minus = document.createElement('button'); minus.className = 'step'; minus.textContent = '–';
+      minus.setAttribute('aria-label', def.name + ' decrease');
+      const cnt = document.createElement('div'); cnt.className = 'cnt' + (st.done >= def.total ? ' done' : '');
+      cnt.textContent = st.done + '/' + def.total;
+      const plus = document.createElement('button'); plus.className = 'step'; plus.textContent = '+';
+      plus.setAttribute('aria-label', def.name + ' increase');
+      minus.onclick = () => { st.done = Math.max(0, st.done - 1); upsert(st); };
+      plus.onclick = () => { st.done = Math.min(def.total, st.done + 1); upsert(st); };
+      ctr.appendChild(minus); ctr.appendChild(cnt); ctr.appendChild(plus);
+      row.appendChild(info); row.appendChild(ctr);
+      tr.appendChild(row);
+    });
+  }
+
+  function upsert(st) {
+    const i = S.tracks.findIndex(x => x.id === st.id);
+    if (i >= 0) S.tracks[i] = st; else S.tracks.push(st);
+    VS.save(); render();
+  }
+
+  document.getElementById('pAdd').addEventListener('click', () => {
+    const name = document.getElementById('pName').value.trim();
+    if (!name) { document.getElementById('pName').focus(); return; }
+    const url = document.getElementById('pUrl').value.trim();
+    if (url && !/^https?:\/\//i.test(url)) {
+      document.getElementById('pFlash').textContent = 'Link must start with http(s)://';
+      return;
+    }
+    const topic = topicSel.value;
+    const p = {
+      id: 'p' + Date.now(),
+      name: name, url: url, topic: topic,
+      diff: document.getElementById('pDiff').value,
+      notes: document.getElementById('pNotes').value.trim(),
+      date: VS.todayIso(), lastReview: null
+    };
+    S.problems = S.problems || [];
+    S.problems.push(p);
+
+    // tick today's algo box
+    const k = VS.activeKey();
+    const cur = VS.dayState(k);
+    cur.algo = true;
+    if (!cur.problem) cur.problem = name;
+    S.days[k] = cur;
+
+    // bump matching track
+    const trackId = VS.TOPIC_TRACK[topic];
+    if (trackId) {
+      const def = VS.DEFAULT_TRACKS.find(d => d.id === trackId);
+      const st = S.tracks.find(x => x.id === trackId) || { id: trackId, done: 0 };
+      st.done = Math.min(def.total, st.done + 1);
+      const i = S.tracks.findIndex(x => x.id === trackId);
+      if (i >= 0) S.tracks[i] = st; else S.tracks.push(st);
+    }
+
+    VS.save();
+    document.getElementById('pName').value = '';
+    document.getElementById('pUrl').value = '';
+    document.getElementById('pNotes').value = '';
+    document.getElementById('pFlash').textContent = 'Logged ✓ — today\u2019s algorithm box ticked';
+    setTimeout(() => { document.getElementById('pFlash').textContent = ''; }, 3000);
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

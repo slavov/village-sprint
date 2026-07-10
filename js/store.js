@@ -7,7 +7,7 @@ window.VS = (function () {
 
   const TOPICS = ['BFS', 'Graphs', 'Backtracking', 'Binary Search', 'DFS', 'Heap',
     'Two Pointers', 'Sliding Window', 'Stack', 'Linked List', 'Intervals',
-    'DP', 'Greedy', 'Trie', 'Prefix Sum', 'Matrices', 'System Design', 'Other'];
+    'DP', 'Greedy', 'Trie', 'Prefix Sum', 'Matrices', 'Other'];
   const TOPIC_TRACK = { 'BFS': 'bfs', 'Graphs': 'graphs', 'Backtracking': 'backtracking' };
 
   const DEFAULT_TRACKS = [

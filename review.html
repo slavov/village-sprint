@@ -42,7 +42,7 @@
 
   <div class="card">
     <h2>Evidence log <span class="meta" id="evCount"></span></h2>
-    <div id="entries"><div class="empty">No entries yet. Each one is evidence against "everyone rejected me."</div></div>
+    <div id="entries"><div class="empty">No entries yet. Two lines a day builds the record.</div></div>
   </div>
 
 </div>
@@ -153,7 +153,7 @@
       (S.days[k].note.well || S.days[k].note.fix)).reverse();
     document.getElementById('evCount').textContent = withNotes.length + ' entries';
     if (withNotes.length === 0) {
-      entriesEl.innerHTML = '<div class="empty">No entries yet. Each one is evidence against "everyone rejected me."</div>';
+      entriesEl.innerHTML = '<div class="empty">No entries yet. Two lines a day builds the record.</div>';
     } else {
       entriesEl.innerHTML = '';
       withNotes.forEach(k => {

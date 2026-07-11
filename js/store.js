@@ -14,8 +14,6 @@ window.VS = (function () {
     { id: 'bfs', name: 'BFS', total: 8, done: 4, type: 'count' },
     { id: 'graphs', name: 'Graphs', total: 6, done: 0, type: 'count' },
     { id: 'backtracking', name: 'Backtracking', total: 6, done: 0, type: 'count' },
-    { id: 'cap', name: 'CAP Theorem', total: 1, done: 0, type: 'count', sub: 'system design' },
-    { id: 'numbers', name: 'Numbers to Know', total: 1, done: 0, type: 'count', sub: 'system design' },
     { id: 'sentences', name: 'First-sentence drills', total: 4, done: 0, type: 'count', sub: 'stories #1 #2 #5 #6' }
   ];
 

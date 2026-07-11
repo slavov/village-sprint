@@ -45,6 +45,26 @@
     <div id="entries"><div class="empty">No entries yet. Two lines a day builds the record.</div></div>
   </div>
 
+  <div class="card">
+    <h2>Stats <span class="meta" id="statMeta"></span></h2>
+    <div class="statgrid" id="statGrid"></div>
+    <div id="rates"></div>
+    <div id="topicStats"></div>
+  </div>
+
+  <div class="card">
+    <h2>Data <span class="meta">backup · share for retro</span></h2>
+    <p style="font-size:13px; margin-top:8px;">Copies everything as JSON — paste it into the chat for the end-of-sprint review, or keep it as a backup.</p>
+    <button class="save" id="exportBtn">Copy full data</button>
+    <div class="saved-flash" id="exportFlash"></div>
+    <details class="steps">
+      <summary>Restore from backup</summary>
+      <textarea id="importBox" placeholder="paste backup JSON here"></textarea>
+      <button class="mini" id="importBtn" style="margin-top:8px;">Restore</button>
+      <div class="saved-flash" id="importFlash"></div>
+    </details>
+  </div>
+
 </div>
 
 <nav class="nav">
@@ -178,12 +198,82 @@
     inp.value = '';
     VS.save(); render();
   }
+  function renderStats() {
+    const t = VS.todayIso();
+    const elapsed = VS.DAYS.filter(k => k <= t);
+    const n = elapsed.length;
+    let minD = 0, fullD = 0, missed = 0;
+    let longest = 0, cur = 0;
+    const itemCounts = { algo: 0, kotlin: 0, third: 0, closeout: 0 };
+    elapsed.forEach(k => {
+      const d = VS.dayState(k);
+      if (VS.isFull(d)) fullD++;
+      if (VS.isMin(d)) { minD++; cur++; longest = Math.max(longest, cur); }
+      else { cur = 0; if (k < t) missed++; }
+      ['algo', 'kotlin', 'third', 'closeout'].forEach(id => { if (d[id]) itemCounts[id]++; });
+    });
+    document.getElementById('statMeta').textContent = 'day ' + n + ' of 16';
+    const cells = [
+      [minD, 'min done'], [fullD, 'full days'], [missed, 'missed'],
+      [VS.streak(), 'streak'], [longest, 'longest'], [(S.problems || []).length, 'problems']
+    ];
+    document.getElementById('statGrid').innerHTML = cells.map(c =>
+      '<div class="stat"><div class="v">' + c[0] + '</div><div class="l">' + c[1] + '</div></div>').join('');
+
+    const labels = { algo: 'Algorithm', kotlin: 'Kotlin', third: 'Sys design / behavioral', closeout: 'Close-out' };
+    document.getElementById('rates').innerHTML = Object.keys(labels).map(id => {
+      const pct = n ? Math.round(100 * itemCounts[id] / n) : 0;
+      return '<div class="rate"><div class="rlbl"><span>' + labels[id] + '</span><span>' +
+        itemCounts[id] + '/' + n + ' · ' + pct + '%</span></div>' +
+        '<div class="barwrap"><div class="bar" style="width:' + pct + '%"></div></div></div>';
+    }).join('');
+
+    const byTopic = {};
+    (S.problems || []).forEach(p => { byTopic[p.topic] = (byTopic[p.topic] || 0) + 1; });
+    const tl = Object.keys(byTopic).sort((a, b) => byTopic[b] - byTopic[a])
+      .map(tp => tp + ' ' + '█'.repeat(byTopic[tp]) + ' ' + byTopic[tp]).join('<br>');
+    document.getElementById('topicStats').innerHTML = tl ? '<div class="topicline">' + tl + '</div>' : '';
+  }
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const payload = JSON.stringify(S, null, 1);
+    const flash = document.getElementById('exportFlash');
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = payload; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      flash.textContent = 'Copied ✓';
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(payload).then(() => { flash.textContent = 'Copied ✓ — paste it in the chat'; })
+        .catch(fallback);
+    } else fallback();
+    setTimeout(() => { flash.textContent = ''; }, 3000);
+  });
+
+  document.getElementById('importBtn').addEventListener('click', () => {
+    const flash = document.getElementById('importFlash');
+    try {
+      const p = JSON.parse(document.getElementById('importBox').value);
+      if (!p || typeof p !== 'object' || !p.days) throw new Error('not a backup');
+      Object.keys(S).forEach(k => delete S[k]);
+      Object.assign(S, p);
+      VS.save();
+      flash.textContent = 'Restored ✓';
+      render(); renderStats();
+    } catch (e) {
+      flash.textContent = 'Invalid backup JSON';
+    }
+    setTimeout(() => { flash.textContent = ''; }, 3000);
+  });
+
   document.getElementById('rsAdd2').addEventListener('click', () => addResolve(2));
   document.getElementById('rsAdd3').addEventListener('click', () => addResolve(3));
   document.getElementById('rsName').addEventListener('keydown', e => { if (e.key === 'Enter') addResolve(2); });
   document.getElementById('pickBtn').addEventListener('click', () => showPick(pickWeighted()));
 
   render();
+  renderStats();
 })();
 </script>
 </body>

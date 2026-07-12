@@ -95,6 +95,9 @@ h1 {
 .cell .knight { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; line-height: 1; }
 .cell.full { background: var(--pine); border-color: var(--pine); color: var(--pine-ink); }
 .cell.min { background: var(--gold-soft); border-color: var(--gold); color: var(--ink); }
+.cell.part { background: transparent; border: 1.5px dashed var(--pine); color: var(--ink); }
+.cell { cursor: pointer; }
+.cell.viewing { box-shadow: 0 0 0 2px var(--gold); }
 .cell.missed { background: transparent; border-color: var(--line); color: var(--ink-soft); opacity: 0.55; }
 .cell.missed::after {
   content: ''; position: absolute; left: 22%; right: 22%; top: 50%;
@@ -110,6 +113,7 @@ h1 {
 .legend span::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 .lg-full::before { background: var(--pine); }
 .lg-min::before { background: var(--gold-soft); border: 1px solid var(--gold); }
+.lg-part::before { background: transparent; border: 1px dashed var(--pine); }
 .lg-r::before { display: none !important; }
 
 /* Checklist */

@@ -30,12 +30,14 @@
     <div class="legend">
       <span class="lg-full">full day</span>
       <span class="lg-min">minimum done</span>
+      <span class="lg-part">partial</span>
       <span class="lg-r"><b style="color:var(--gold)">R</b>&nbsp;= revisit Friday</span>
     </div>
   </div>
 
   <div class="card">
     <h2>Today <span class="meta" id="todayLabel"></span></h2>
+    <div id="viewBanner" class="fridaynote" style="display:none"></div>
     <div id="fridayNote" class="fridaynote" style="display:none">Revisit day: Review tab → randomizer · re-read notes</div>
     <label class="f" for="probInput">Today's problem</label>
     <input type="text" id="probInput" placeholder="e.g. Rotting Oranges" aria-label="today's problem">
@@ -92,6 +94,7 @@
   VS.load();
   VS.markNav('today');
   const S = VS.state();
+  let viewKey = null; // null = today
 
   function thirdLabel(k) {
     return parseInt(k.slice(-2), 10) % 2 === 0 ? 'System design' : 'Behavioral';
@@ -99,13 +102,24 @@
 
   function render() {
     const tKey = VS.todayIso();
-    const aKey = VS.activeKey();
+    const aKey = viewKey || VS.activeKey();
     const ds = VS.dayState(aKey);
 
     document.getElementById('daysLeft').textContent = VS.daysLeft();
     document.getElementById('streakVal').textContent = VS.streak();
     document.getElementById('todayLabel').textContent = VS.fmtDate(aKey);
     document.getElementById('fridayNote').style.display = VS.FRIDAYS.includes(aKey) ? 'block' : 'none';
+
+    const vb = document.getElementById('viewBanner');
+    if (viewKey) {
+      vb.style.display = 'block';
+      vb.innerHTML = 'Viewing ' + VS.fmtDate(aKey) + ' &nbsp; <button class="mini" id="backToday">back to today</button>';
+      document.getElementById('backToday').onclick = () => { viewKey = null; render(); };
+    } else {
+      vb.style.display = 'none';
+    }
+    document.querySelector('.timerbar').style.display = viewKey ? 'none' : 'flex';
+    document.querySelector('.thint').style.display = viewKey ? 'none' : 'block';
 
     // board
     const board = document.getElementById('board');
@@ -114,10 +128,13 @@
       const d = VS.dayState(k);
       const cell = document.createElement('div');
       cell.className = 'cell';
+      const any = !!(d.algo || d.kotlin || d.third || d.closeout);
       if (VS.isFull(d)) cell.classList.add('full');
       else if (VS.isMin(d)) cell.classList.add('min');
+      else if (any) cell.classList.add('part');
       else if (k < tKey) cell.classList.add('missed');
       if (k === tKey) cell.classList.add('today');
+      if (viewKey === k) cell.classList.add('viewing');
       if (VS.FRIDAYS.includes(k)) cell.classList.add('friday');
       cell.textContent = String(parseInt(k.slice(-2), 10));
       if (k === tKey) {
@@ -126,6 +143,12 @@
         kn.className = 'knight'; kn.textContent = '♞';
         cell.appendChild(kn);
       }
+      cell.tabIndex = 0;
+      cell.setAttribute('role', 'button');
+      cell.setAttribute('aria-label', VS.fmtDate(k));
+      const open = () => { viewKey = (k === VS.activeKey()) ? null : k; render(); };
+      cell.addEventListener('click', open);
+      cell.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
       board.appendChild(cell);
     });
 
@@ -174,7 +197,7 @@
   }
 
   document.getElementById('probInput').addEventListener('change', () => {
-    const k = VS.activeKey();
+    const k = viewKey || VS.activeKey();
     const cur = VS.dayState(k);
     cur.problem = document.getElementById('probInput').value.trim();
     S.days[k] = cur;
@@ -182,7 +205,7 @@
   });
 
   document.getElementById('saveBtn').addEventListener('click', () => {
-    const k = VS.activeKey();
+    const k = viewKey || VS.activeKey();
     const cur = VS.dayState(k);
     cur.note = {
       well: document.getElementById('well').value.trim(),

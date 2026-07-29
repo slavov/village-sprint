@@ -15,17 +15,18 @@
 
   <div class="header-row">
     <div>
-      <div class="eyebrow">Georgi · Jul 8–23</div>
+      <div class="eyebrow" id="eyebrow">Georgi · Amsterdam</div>
       <h1>Village Sprint</h1>
     </div>
     <div class="hstats">
       <div><div class="num" id="streakVal">0</div><div class="lbl">streak</div></div>
-      <div><div class="num" id="daysLeft">–</div><div class="lbl">days left</div></div>
+      <div><div class="num" id="bestVal">0</div><div class="lbl">best</div></div>
     </div>
   </div>
 
   <div class="card">
     <h2>The board <span class="meta">♞ = today · R = revisit</span></h2>
+    <div class="dowrow" id="dowRow"></div>
     <div class="board" id="board"></div>
     <div class="legend">
       <span class="lg-full">full day</span>
@@ -75,16 +76,27 @@
     <div class="saved-flash" id="savedFlash"></div>
   </div>
 
+  <details class="steps">
+    <summary>Why this works</summary>
+    <ul class="whylist">
+      <li><b>Streak, not deadline.</b> No end date to run out — loss aversion keeps a running streak more motivating than a shrinking countdown ever was.</li>
+      <li><b>Three small reps beat one big one.</b> Interleaving Algorithms, Kotlin and System Design daily (vs. blocking by topic) improves long-term recall — it's harder in the moment, better a week later.</li>
+      <li><b>The re-solve queue is retrieval practice.</b> Reading a solution teaches you nothing durable; being forced to reproduce it cold days later is what makes it stick (the testing effect).</li>
+      <li><b>Two lines a day beats a long journal.</b> Cheap, specific reflection you'll actually keep doing — friction kills the fancy version.</li>
+      <li><b>The board is a visible chain.</b> Seeing the pattern of done days is its own reward — don't break the chain.</li>
+    </ul>
+  </details>
+
   <div class="kaizen">
-    Done = one problem + one Kotlin rewrite.<br>
-    Everything beyond that is bonus.
+    Done = one problem + one Kotlin rep + one System Design rep.<br>
+    Close-out is the bonus polish.
   </div>
 
 </div>
 
 <nav class="nav">
   <a href="index.html" data-page="today"><span class="ico">♞</span>Today</a>
-  <a href="problems.html" data-page="problems"><span class="ico">⌗</span>Problems</a>
+  <a href="problems.html" data-page="problems"><span class="ico">⌗</span>Log</a>
   <a href="review.html" data-page="review"><span class="ico">↻</span>Review</a>
 </nav>
 
@@ -96,19 +108,17 @@
   const S = VS.state();
   let viewKey = null; // null = today
 
-  function thirdLabel(k) {
-    return parseInt(k.slice(-2), 10) % 2 === 0 ? 'System design' : 'Behavioral';
-  }
-
   function render() {
     const tKey = VS.todayIso();
-    const aKey = viewKey || VS.activeKey();
+    const aKey = viewKey || tKey;
     const ds = VS.dayState(aKey);
 
-    document.getElementById('daysLeft').textContent = VS.daysLeft();
     document.getElementById('streakVal').textContent = VS.streak();
+    document.getElementById('bestVal').textContent = VS.longestStreak();
     document.getElementById('todayLabel').textContent = VS.fmtDate(aKey);
-    document.getElementById('fridayNote').style.display = VS.FRIDAYS.includes(aKey) ? 'block' : 'none';
+    document.getElementById('fridayNote').style.display = VS.isRevisitDay(aKey) ? 'block' : 'none';
+    document.getElementById('eyebrow').textContent = 'Georgi · ' +
+      new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 
     const vb = document.getElementById('viewBanner');
     if (viewKey) {
@@ -121,21 +131,29 @@
     document.querySelector('.timerbar').style.display = viewKey ? 'none' : 'flex';
     document.querySelector('.thint').style.display = viewKey ? 'none' : 'block';
 
-    // board
+    // day-of-week header row
+    const dowRow = document.getElementById('dowRow');
+    if (!dowRow.childElementCount) {
+      dowRow.innerHTML = VS.DOW_LABELS.map(l => '<span>' + l + '</span>').join('');
+    }
+
+    // board — rolling 4-week calendar grid
     const board = document.getElementById('board');
     board.innerHTML = '';
-    VS.DAYS.forEach(k => {
+    VS.gridDays(4).forEach(k => {
       const d = VS.dayState(k);
       const cell = document.createElement('div');
       cell.className = 'cell';
-      const any = !!(d.algo || d.kotlin || d.third || d.closeout);
-      if (VS.isFull(d)) cell.classList.add('full');
+      const any = !!(d.algo || d.kotlin || d.sysdesign || d.closeout);
+      const future = VS.isFuture(k);
+      if (future) cell.classList.add('future');
+      else if (VS.isFull(d)) cell.classList.add('full');
       else if (VS.isMin(d)) cell.classList.add('min');
       else if (any) cell.classList.add('part');
       else if (k < tKey) cell.classList.add('missed');
       if (k === tKey) cell.classList.add('today');
       if (viewKey === k) cell.classList.add('viewing');
-      if (VS.FRIDAYS.includes(k)) cell.classList.add('friday');
+      if (VS.isRevisitDay(k)) cell.classList.add('friday');
       cell.textContent = String(parseInt(k.slice(-2), 10));
       if (k === tKey) {
         cell.textContent = '';
@@ -143,12 +161,14 @@
         kn.className = 'knight'; kn.textContent = '♞';
         cell.appendChild(kn);
       }
-      cell.tabIndex = 0;
-      cell.setAttribute('role', 'button');
-      cell.setAttribute('aria-label', VS.fmtDate(k));
-      const open = () => { viewKey = (k === VS.activeKey()) ? null : k; render(); };
-      cell.addEventListener('click', open);
-      cell.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+      if (!future) {
+        cell.tabIndex = 0;
+        cell.setAttribute('role', 'button');
+        cell.setAttribute('aria-label', VS.fmtDate(k));
+        const open = () => { viewKey = (k === tKey) ? null : k; render(); };
+        cell.addEventListener('click', open);
+        cell.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+      }
       board.appendChild(cell);
     });
 
@@ -156,7 +176,6 @@
     const list = document.getElementById('checklist');
     list.innerHTML = '';
     VS.CHECKS.forEach(c => {
-      const label = c.id === 'third' ? thirdLabel(aKey) : c.t;
       let sub = c.s;
       if (c.id === 'algo' && ds.problem) sub = '→ ' + VS.esc(ds.problem) + ' · ' + c.s;
       const row = document.createElement('div');
@@ -164,7 +183,7 @@
       row.setAttribute('role', 'checkbox');
       row.setAttribute('aria-checked', ds[c.id] ? 'true' : 'false');
       row.tabIndex = 0;
-      row.innerHTML = '<div class="box">✓</div><div class="txt"><div class="t">' + label +
+      row.innerHTML = '<div class="box">✓</div><div class="txt"><div class="t">' + c.t +
         '</div><div class="s">' + sub + '</div></div>';
       const toggle = () => {
         const cur = VS.dayState(aKey);
@@ -197,7 +216,7 @@
   }
 
   document.getElementById('probInput').addEventListener('change', () => {
-    const k = viewKey || VS.activeKey();
+    const k = viewKey || VS.todayIso();
     const cur = VS.dayState(k);
     cur.problem = document.getElementById('probInput').value.trim();
     S.days[k] = cur;
@@ -205,7 +224,7 @@
   });
 
   document.getElementById('saveBtn').addEventListener('click', () => {
-    const k = viewKey || VS.activeKey();
+    const k = viewKey || VS.todayIso();
     const cur = VS.dayState(k);
     cur.note = {
       well: document.getElementById('well').value.trim(),

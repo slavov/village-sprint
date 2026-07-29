@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1F4A3C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Sprint">
-<title>Problems — Village Sprint</title>
+<title>Log — Village Sprint</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Archivo:wght@500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -16,23 +16,24 @@
   <div class="header-row">
     <div>
       <div class="eyebrow">Village Sprint</div>
-      <h1>Problems</h1>
+      <h1>Log</h1>
     </div>
     <div class="hstats">
-      <div><div class="num" id="probCount">0</div><div class="lbl">solved</div></div>
+      <div><div class="num" id="probCount">0</div><div class="lbl">logged</div></div>
     </div>
   </div>
 
   <div class="card">
-    <h2>Log a solved problem</h2>
+    <h2>Log something solved</h2>
+    <div class="tabrow" id="trackTabs"></div>
     <div class="formgrid">
       <div class="full">
-        <label class="f" for="pName">Problem name</label>
+        <label class="f" for="pName">Name</label>
         <input type="text" id="pName" placeholder="e.g. Rotting Oranges">
       </div>
       <div class="full">
-        <label class="f" for="pUrl">Link (HelloInterview)</label>
-        <input type="url" id="pUrl" placeholder="https://www.hellointerview.com/...">
+        <label class="f" for="pUrl">Link</label>
+        <input type="url" id="pUrl" placeholder="https://...">
       </div>
       <div>
         <label class="f" for="pTopic">Topic</label>
@@ -51,26 +52,27 @@
         <textarea id="pNotes" placeholder="e.g. forgot the visited set → infinite loop"></textarea>
       </div>
     </div>
-    <button class="save" id="pAdd">Add problem</button>
+    <button class="save" id="pAdd">Add to log</button>
     <div class="saved-flash" id="pFlash"></div>
-    <div class="thint">Adding a problem also ticks today's "Algorithm problem" box and bumps the matching track.</div>
+    <div class="thint" id="tickHint">Adding this also ticks today's matching checklist box.</div>
   </div>
 
   <div class="card">
-    <h2>Solved <span class="meta" id="listMeta"></span></h2>
+    <h2>Progress <span class="meta">all-time</span></h2>
+    <div class="statgrid" id="pillarStats"></div>
+  </div>
+
+  <div class="card">
+    <h2>Logged <span class="meta" id="listMeta"></span></h2>
+    <div class="tabrow" id="filterTabs"></div>
     <div id="probList"><div class="empty">Nothing logged yet.</div></div>
-  </div>
-
-  <div class="card">
-    <h2>Tracks <span class="meta">sprint scope</span></h2>
-    <div id="tracks"></div>
   </div>
 
 </div>
 
 <nav class="nav">
   <a href="index.html" data-page="today"><span class="ico">♞</span>Today</a>
-  <a href="problems.html" data-page="problems"><span class="ico">⌗</span>Problems</a>
+  <a href="problems.html" data-page="problems"><span class="ico">⌗</span>Log</a>
   <a href="review.html" data-page="review"><span class="ico">↻</span>Review</a>
 </nav>
 
@@ -81,24 +83,68 @@
   VS.markNav('problems');
   const S = VS.state();
 
-  // topic select
-  const topicSel = document.getElementById('pTopic');
-  VS.TOPICS.forEach(t => {
-    const o = document.createElement('option');
-    o.value = t; o.textContent = t;
-    topicSel.appendChild(o);
-  });
+  let formTrack = VS.TRACK_DEFS[0].id;
+  let filterTrack = 'All';
+
+  // form track tabs
+  const trackTabs = document.getElementById('trackTabs');
+  function renderFormTabs() {
+    trackTabs.innerHTML = '';
+    VS.TRACK_DEFS.forEach(t => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tab chip-' + t.chip + (t.id === formTrack ? ' on' : '');
+      b.textContent = t.short;
+      b.onclick = () => { formTrack = t.id; renderFormTabs(); renderTopics(); };
+      trackTabs.appendChild(b);
+    });
+  }
+  function renderTopics() {
+    const sel = document.getElementById('pTopic');
+    sel.innerHTML = '';
+    VS.trackDef(formTrack).topics.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      sel.appendChild(o);
+    });
+    document.getElementById('tickHint').textContent =
+      'Adding this also ticks today’s "' + VS.trackDef(formTrack).id + '" checklist box.';
+  }
+
+  // list filter tabs
+  const filterTabs = document.getElementById('filterTabs');
+  function renderFilterTabs() {
+    filterTabs.innerHTML = '';
+    ['All'].concat(VS.TRACK_DEFS.map(t => t.id)).forEach(id => {
+      const def = VS.TRACK_DEFS.find(t => t.id === id);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tab' + (def ? ' chip-' + def.chip : '') + (id === filterTrack ? ' on' : '');
+      b.textContent = def ? def.short : 'All';
+      b.onclick = () => { filterTrack = id; render(); };
+      filterTabs.appendChild(b);
+    });
+  }
 
   function render() {
-    const probs = (S.problems || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
-    document.getElementById('probCount').textContent = probs.length;
-    document.getElementById('listMeta').textContent = probs.length + ' problems';
+    const all = (S.problems || []);
+    document.getElementById('probCount').textContent = all.length;
+
+    // pillar stats
+    const stats = VS.TRACK_DEFS.map(t => [all.filter(p => p.track === t.id).length, t.short]);
+    document.getElementById('pillarStats').innerHTML = stats.map(c =>
+      '<div class="stat"><div class="v">' + c[0] + '</div><div class="l">' + c[1] + '</div></div>').join('');
+
+    const probs = all.filter(p => filterTrack === 'All' || p.track === filterTrack)
+      .slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+    document.getElementById('listMeta').textContent = probs.length + ' of ' + all.length;
     const list = document.getElementById('probList');
     if (probs.length === 0) {
       list.innerHTML = '<div class="empty">Nothing logged yet.</div>';
     } else {
       list.innerHTML = '';
       probs.forEach(p => {
+        const def = VS.trackDef(p.track);
         const el = document.createElement('div');
         el.className = 'prob';
         const nameHtml = p.url
@@ -106,6 +152,7 @@
           : VS.esc(p.name);
         el.innerHTML =
           '<div class="top"><span class="nm">' + nameHtml + '</span>' +
+          '<span class="chip chip-' + def.chip + '">' + VS.esc(p.track) + '</span>' +
           '<span class="chip">' + VS.esc(p.topic) + '</span>' +
           '<span class="chip gold">' + VS.esc(p.diff) + '</span></div>' +
           '<div class="sub">' + VS.fmtDate(p.date) +
@@ -135,39 +182,6 @@
         list.appendChild(el);
       });
     }
-
-    // tracks
-    const tr = document.getElementById('tracks');
-    tr.innerHTML = '';
-    VS.DEFAULT_TRACKS.forEach(def => {
-      const st = S.tracks.find(x => x.id === def.id) || { id: def.id, done: 0 };
-      const row = document.createElement('div');
-      row.className = 'track' + (st.done >= def.total ? ' done-track' : '');
-      const info = document.createElement('div');
-      info.style.flex = '1';
-      info.innerHTML = '<div class="name">' + def.name + '</div>' +
-        (def.sub ? '<div class="sub">' + def.sub + '</div>' : '') +
-        '<div class="barwrap"><div class="bar" style="width:' + Math.round(100 * st.done / def.total) + '%"></div></div>';
-      const ctr = document.createElement('div');
-      ctr.className = 'counter';
-      const minus = document.createElement('button'); minus.className = 'step'; minus.textContent = '–';
-      minus.setAttribute('aria-label', def.name + ' decrease');
-      const cnt = document.createElement('div'); cnt.className = 'cnt' + (st.done >= def.total ? ' done' : '');
-      cnt.textContent = st.done + '/' + def.total;
-      const plus = document.createElement('button'); plus.className = 'step'; plus.textContent = '+';
-      plus.setAttribute('aria-label', def.name + ' increase');
-      minus.onclick = () => { st.done = Math.max(0, st.done - 1); upsert(st); };
-      plus.onclick = () => { st.done = Math.min(def.total, st.done + 1); upsert(st); };
-      ctr.appendChild(minus); ctr.appendChild(cnt); ctr.appendChild(plus);
-      row.appendChild(info); row.appendChild(ctr);
-      tr.appendChild(row);
-    });
-  }
-
-  function upsert(st) {
-    const i = S.tracks.findIndex(x => x.id === st.id);
-    if (i >= 0) S.tracks[i] = st; else S.tracks.push(st);
-    VS.save(); render();
   }
 
   document.getElementById('pAdd').addEventListener('click', () => {
@@ -178,10 +192,9 @@
       document.getElementById('pFlash').textContent = 'Link must start with http(s)://';
       return;
     }
-    const topic = topicSel.value;
     const p = {
       id: 'p' + Date.now(),
-      name: name, url: url, topic: topic,
+      name: name, url: url, track: formTrack, topic: document.getElementById('pTopic').value,
       diff: document.getElementById('pDiff').value,
       notes: document.getElementById('pNotes').value.trim(),
       date: VS.todayIso(), lastReview: null
@@ -189,32 +202,25 @@
     S.problems = S.problems || [];
     S.problems.push(p);
 
-    // tick today's algo box
-    const k = VS.activeKey();
+    // tick today's matching checklist box
+    const k = VS.todayIso();
     const cur = VS.dayState(k);
-    cur.algo = true;
-    if (!cur.problem) cur.problem = name;
+    cur[VS.trackDef(formTrack).check] = true;
+    if (formTrack === 'Algorithm' && !cur.problem) cur.problem = name;
     S.days[k] = cur;
-
-    // bump matching track
-    const trackId = VS.TOPIC_TRACK[topic];
-    if (trackId) {
-      const def = VS.DEFAULT_TRACKS.find(d => d.id === trackId);
-      const st = S.tracks.find(x => x.id === trackId) || { id: trackId, done: 0 };
-      st.done = Math.min(def.total, st.done + 1);
-      const i = S.tracks.findIndex(x => x.id === trackId);
-      if (i >= 0) S.tracks[i] = st; else S.tracks.push(st);
-    }
 
     VS.save();
     document.getElementById('pName').value = '';
     document.getElementById('pUrl').value = '';
     document.getElementById('pNotes').value = '';
-    document.getElementById('pFlash').textContent = 'Logged ✓ — today\u2019s algorithm box ticked';
+    document.getElementById('pFlash').textContent = 'Logged ✓ — today’s "' + formTrack + '" box ticked';
     setTimeout(() => { document.getElementById('pFlash').textContent = ''; }, 3000);
     render();
   });
 
+  renderFormTabs();
+  renderTopics();
+  renderFilterTabs();
   render();
 })();
 </script>

@@ -25,7 +25,7 @@
 
   <div class="card">
     <h2>Randomizer <span class="meta">Friday drill</span></h2>
-    <p style="font-size:13.5px; margin-top:8px;">Picks one solved problem for a cold re-solve. Oldest reviews are weighted heavier — the ones you're most likely to have forgotten.</p>
+    <p style="font-size:13.5px; margin-top:8px;">Picks one logged entry — any track — for a cold re-solve. Oldest reviews are weighted heavier — the ones you're most likely to have forgotten.</p>
     <button class="save" id="pickBtn">♞ Pick one</button>
     <div id="randTarget"></div>
   </div>
@@ -33,11 +33,16 @@
   <div class="card">
     <h2>Re-solve queue <span class="meta" id="rsMeta"></span></h2>
     <div class="addrow">
-      <input type="text" id="rsName" placeholder="problem you read the solution for" aria-label="problem name">
+      <input type="text" id="rsName" placeholder="thing you read the solution for" aria-label="item name">
       <button class="mini" id="rsAdd2">+2d</button>
       <button class="mini" id="rsAdd3">+3d</button>
     </div>
     <div id="rsList"></div>
+  </div>
+
+  <div class="card">
+    <h2>Milestones <span class="meta">total logged</span></h2>
+    <div id="milestone"></div>
   </div>
 
   <div class="card">
@@ -54,7 +59,7 @@
 
   <div class="card">
     <h2>Data <span class="meta">backup · share for retro</span></h2>
-    <p style="font-size:13px; margin-top:8px;">Copies everything as JSON — paste it into the chat for the end-of-sprint review, or keep it as a backup.</p>
+    <p style="font-size:13px; margin-top:8px;">Copies everything as JSON — paste it into the chat for a retro, or keep it as a backup.</p>
     <button class="save" id="exportBtn">Copy full data</button>
     <div class="saved-flash" id="exportFlash"></div>
     <details class="steps">
@@ -69,7 +74,7 @@
 
 <nav class="nav">
   <a href="index.html" data-page="today"><span class="ico">♞</span>Today</a>
-  <a href="problems.html" data-page="problems"><span class="ico">⌗</span>Problems</a>
+  <a href="problems.html" data-page="problems"><span class="ico">⌗</span>Log</a>
   <a href="review.html" data-page="review"><span class="ico">↻</span>Review</a>
 </nav>
 
@@ -80,6 +85,7 @@
   VS.markNav('review');
   const S = VS.state();
   let lastPickId = null;
+  const MILESTONES = [10, 25, 50, 100, 200, 365];
 
   function pickWeighted() {
     const probs = S.problems || [];
@@ -104,18 +110,18 @@
   function showPick(p) {
     const el = document.getElementById('randTarget');
     if (!p) {
-      el.innerHTML = '<div class="empty">No problems in the log yet — add them on the Problems tab.</div>';
+      el.innerHTML = '<div class="empty">Nothing in the log yet — add entries on the Log tab.</div>';
       return;
     }
     lastPickId = p.id;
     const linkBtn = p.url
-      ? '<a class="mini" style="text-decoration:none; padding:8px 12px; border:1.5px solid var(--pine); border-radius:9px; color:var(--pine); font-family:var(--mono); font-size:12px; font-weight:700;" href="' + VS.esc(p.url) + '" target="_blank" rel="noopener">Open problem ↗</a>'
+      ? '<a class="mini" style="text-decoration:none; padding:8px 12px; border:1.5px solid var(--pine); border-radius:9px; color:var(--pine); font-family:var(--mono); font-size:12px; font-weight:700;" href="' + VS.esc(p.url) + '" target="_blank" rel="noopener">Open ↗</a>'
       : '';
     el.innerHTML =
       '<div class="rand-card">' +
       '<div class="rn">' + VS.esc(p.name) + '</div>' +
-      '<div class="rt">' + VS.esc(p.topic) + ' · ' + VS.esc(p.diff) +
-      ' · solved ' + VS.fmtDate(p.date) +
+      '<div class="rt">' + VS.esc(p.track) + ' · ' + VS.esc(p.topic) + ' · ' + VS.esc(p.diff) +
+      ' · logged ' + VS.fmtDate(p.date) +
       (p.lastReview ? ' · last re-solved ' + VS.fmtDate(p.lastReview) : ' · never re-solved') + '</div>' +
       (p.notes ? '<div class="rt" style="margin-top:6px;">⚠ ' + VS.esc(p.notes) + '</div>' : '') +
       '<div class="racts">' + linkBtn +
@@ -141,7 +147,7 @@
     const items = (S.resolve || []).slice().sort((a, b) => (a.due < b.due ? -1 : 1));
     document.getElementById('rsMeta').textContent = items.length + ' queued';
     if (items.length === 0) {
-      list.innerHTML = '<div class="empty">Empty. When the 20-minute rule fires — read the solution, park the problem here.</div>';
+      list.innerHTML = '<div class="empty">Empty. When the 20-minute rule fires — read the solution, park it here.</div>';
     } else {
       list.innerHTML = '';
       items.forEach(it => {
@@ -157,7 +163,6 @@
         ok.onclick = () => {
           S.resolve = S.resolve.filter(x => x !== it);
           S.resolved = (S.resolved || 0) + 1;
-          // stamp lastReview if it matches a logged problem
           const match = (S.problems || []).find(p => p.name.toLowerCase() === it.n.toLowerCase());
           if (match) match.lastReview = VS.todayIso();
           VS.save(); render();
@@ -167,10 +172,24 @@
       });
     }
 
-    // evidence log
+    // milestones
+    const total = (S.problems || []).length;
+    const next = MILESTONES.find(m => m > total);
+    const prev = MILESTONES.filter(m => m <= total).pop() || 0;
+    const ms = document.getElementById('milestone');
+    if (!next) {
+      ms.innerHTML = '<div class="empty">' + total + ' logged — past every milestone. Keep the streak alive.</div>';
+    } else {
+      const pct = Math.round(100 * (total - prev) / (next - prev));
+      ms.innerHTML = '<div class="rate"><div class="rlbl"><span>' + total + ' logged</span>' +
+        '<span>' + (next - total) + ' to ' + next + '</span></div>' +
+        '<div class="barwrap"><div class="bar" style="width:' + pct + '%"></div></div></div>';
+    }
+
+    // evidence log — every day ever noted, most recent first
     const entriesEl = document.getElementById('entries');
-    const withNotes = VS.DAYS.filter(k => S.days[k] && S.days[k].note &&
-      (S.days[k].note.well || S.days[k].note.fix)).reverse();
+    const withNotes = Object.keys(S.days).filter(k => S.days[k] && S.days[k].note &&
+      (S.days[k].note.well || S.days[k].note.fix)).sort().reverse();
     document.getElementById('evCount').textContent = withNotes.length + ' entries';
     if (withNotes.length === 0) {
       entriesEl.innerHTML = '<div class="empty">No entries yet. Two lines a day builds the record.</div>';
@@ -198,33 +217,27 @@
     inp.value = '';
     VS.save(); render();
   }
+
   function renderStats() {
-    const t = VS.todayIso();
-    const elapsed = VS.DAYS.filter(k => k <= t);
-    const n = elapsed.length;
-    let minD = 0, fullD = 0, missed = 0;
-    let longest = 0, cur = 0;
-    const itemCounts = { algo: 0, kotlin: 0, third: 0, closeout: 0 };
-    elapsed.forEach(k => {
-      const d = VS.dayState(k);
+    const days = Object.keys(S.days).sort();
+    const n = days.length;
+    let minD = 0, fullD = 0;
+    const itemCounts = { algo: 0, kotlin: 0, sysdesign: 0, closeout: 0 };
+    days.forEach(k => {
+      const d = S.days[k];
       if (VS.isFull(d)) fullD++;
-      if (VS.isMin(d)) { minD++; cur++; longest = Math.max(longest, cur); }
-      else {
-        cur = 0;
-        const any = !!(d.algo || d.kotlin || d.third || d.closeout);
-        if (k < t && !any) missed++;
-      }
-      ['algo', 'kotlin', 'third', 'closeout'].forEach(id => { if (d[id]) itemCounts[id]++; });
+      if (VS.isMin(d)) minD++;
+      ['algo', 'kotlin', 'sysdesign', 'closeout'].forEach(id => { if (d[id]) itemCounts[id]++; });
     });
-    document.getElementById('statMeta').textContent = 'day ' + n + ' of 16';
+    document.getElementById('statMeta').textContent = VS.totalActiveDays() + ' active days';
     const cells = [
-      [minD, 'min done'], [fullD, 'full days'], [missed, 'missed'],
-      [VS.streak(), 'streak'], [longest, 'longest'], [(S.problems || []).length, 'problems']
+      [minD, 'min done'], [fullD, 'full days'], [VS.totalActiveDays(), 'active days'],
+      [VS.streak(), 'streak'], [VS.longestStreak(), 'best streak'], [(S.problems || []).length, 'logged']
     ];
     document.getElementById('statGrid').innerHTML = cells.map(c =>
       '<div class="stat"><div class="v">' + c[0] + '</div><div class="l">' + c[1] + '</div></div>').join('');
 
-    const labels = { algo: 'Algorithm', kotlin: 'Kotlin', third: 'Sys design / behavioral', closeout: 'Close-out' };
+    const labels = { algo: 'Algorithm', kotlin: 'Kotlin', sysdesign: 'System design', closeout: 'Close-out' };
     document.getElementById('rates').innerHTML = Object.keys(labels).map(id => {
       const pct = n ? Math.round(100 * itemCounts[id] / n) : 0;
       return '<div class="rate"><div class="rlbl"><span>' + labels[id] + '</span><span>' +
@@ -232,11 +245,16 @@
         '<div class="barwrap"><div class="bar" style="width:' + pct + '%"></div></div></div>';
     }).join('');
 
-    const byTopic = {};
-    (S.problems || []).forEach(p => { byTopic[p.topic] = (byTopic[p.topic] || 0) + 1; });
-    const tl = Object.keys(byTopic).sort((a, b) => byTopic[b] - byTopic[a])
-      .map(tp => tp + ' ' + '█'.repeat(byTopic[tp]) + ' ' + byTopic[tp]).join('<br>');
-    document.getElementById('topicStats').innerHTML = tl ? '<div class="topicline">' + tl + '</div>' : '';
+    // per-track topic breakdown
+    const blocks = VS.TRACK_DEFS.map(t => {
+      const byTopic = {};
+      (S.problems || []).filter(p => p.track === t.id).forEach(p => { byTopic[p.topic] = (byTopic[p.topic] || 0) + 1; });
+      const keys = Object.keys(byTopic).sort((a, b) => byTopic[b] - byTopic[a]);
+      if (!keys.length) return '';
+      const lines = keys.map(tp => tp + ' ' + '█'.repeat(byTopic[tp]) + ' ' + byTopic[tp]).join('<br>');
+      return '<div class="topicline"><b class="chip chip-' + t.chip + '">' + t.short + '</b><br>' + lines + '</div>';
+    }).join('');
+    document.getElementById('topicStats').innerHTML = blocks;
   }
 
   document.getElementById('exportBtn').addEventListener('click', () => {

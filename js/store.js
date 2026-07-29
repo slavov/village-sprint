@@ -1,44 +1,64 @@
 /* Village Sprint — shared state module. No build step, no dependencies. */
 window.VS = (function () {
   const KEY = 'village-sprint-2026';
-  const START = new Date(2026, 6, 8);   // Jul 8
-  const END = new Date(2026, 6, 23);    // Jul 23
-  const FRIDAYS = ['2026-07-10', '2026-07-17'];
 
-  const TOPICS = ['BFS', 'Graphs', 'Backtracking', 'Binary Search', 'DFS', 'Heap',
+  const ALGO_TOPICS = ['BFS', 'Graphs', 'Backtracking', 'Binary Search', 'DFS', 'Heap',
     'Two Pointers', 'Sliding Window', 'Stack', 'Linked List', 'Intervals',
     'DP', 'Greedy', 'Trie', 'Prefix Sum', 'Matrices', 'Other'];
-  const TOPIC_TRACK = { 'BFS': 'bfs', 'Graphs': 'graphs', 'Backtracking': 'backtracking' };
+  const KOTLIN_TOPICS = ['Coroutines', 'Flow', 'Collections', 'Null safety',
+    'Sealed & data classes', 'Generics', 'Scope functions', 'Delegation',
+    'Extension functions', 'Koans', 'Other'];
+  const SYSDESIGN_TOPICS = ['Case study', 'Scalability', 'Caching', 'Databases',
+    'Load balancing', 'Messaging / queues', 'Consistency & CAP', 'API design', 'Other'];
 
-  const DEFAULT_TRACKS = [
-    { id: 'bfs', name: 'BFS', total: 8, done: 4, type: 'count' },
-    { id: 'graphs', name: 'Graphs', total: 6, done: 0, type: 'count' },
-    { id: 'backtracking', name: 'Backtracking', total: 6, done: 0, type: 'count' },
-    { id: 'sentences', name: 'First-sentence drills', total: 4, done: 0, type: 'count', sub: 'stories #1 #2 #5 #6' }
+  // The three pillars. `check` ties a track to today's checklist box;
+  // `topics` feeds the topic dropdown in the log form.
+  const TRACK_DEFS = [
+    { id: 'Algorithm', short: 'Algo', check: 'algo', chip: 'algo', topics: ALGO_TOPICS },
+    { id: 'Kotlin', short: 'Kotlin', check: 'kotlin', chip: 'kotlin', topics: KOTLIN_TOPICS },
+    { id: 'System Design', short: 'SysDes', check: 'sysdesign', chip: 'sysdesign', topics: SYSDESIGN_TOPICS }
   ];
 
   const CHECKS = [
-    { id: 'algo', t: 'Algorithm problem', s: '60\u201375 min \u00b7 out loud, 5-step framework' },
-    { id: 'kotlin', t: 'Kotlin rewrite / Koans', s: '30 min \u00b7 rewrite today\u2019s solution' },
-    { id: 'third', t: '', s: '30 min' },
-    { id: 'closeout', t: 'Close-out written', s: '10 min \u00b7 two lines' }
+    { id: 'algo', t: 'Algorithm problem', s: '60–75 min · out loud, 5-step framework' },
+    { id: 'kotlin', t: 'Kotlin rewrite / Koans', s: '30 min · rewrite today’s solution' },
+    { id: 'sysdesign', t: 'System design', s: '30 min · one case study, out loud' },
+    { id: 'closeout', t: 'Close-out written', s: '10 min · two lines' }
   ];
+
+  const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
   function iso(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
   function todayIso() { return iso(new Date()); }
-  function dayList() {
+
+  function mondayOf(d) {
+    const x = new Date(d);
+    const dow = (x.getDay() + 6) % 7; // 0 = Monday
+    x.setDate(x.getDate() - dow);
+    x.setHours(12, 0, 0, 0);
+    return x;
+  }
+  // Rolling calendar grid: `weeks` full Mon–Sun weeks ending with the current week.
+  function gridDays(weeks) {
+    weeks = weeks || 4;
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    const start = mondayOf(today);
+    start.setDate(start.getDate() - 7 * (weeks - 1));
     const out = [];
-    for (let d = new Date(START); d <= END; d.setDate(d.getDate() + 1)) out.push(iso(new Date(d)));
+    const d = new Date(start);
+    while (out.length < weeks * 7) {
+      out.push(iso(d));
+      d.setDate(d.getDate() + 1);
+    }
     return out;
   }
-  const DAYS = dayList();
-  function activeKey() { return DAYS.includes(todayIso()) ? todayIso() : DAYS[0]; }
+  function isRevisitDay(k) { return new Date(k + 'T12:00:00').getDay() === 5; } // Friday
+  function isFuture(k) { return k > todayIso(); }
 
   let state = {
     days: {},
-    tracks: DEFAULT_TRACKS.map(t => ({ id: t.id, done: t.done })),
     resolve: [],
     resolved: 0,
     problems: []
@@ -51,7 +71,6 @@ window.VS = (function () {
       try {
         const p = JSON.parse(raw);
         if (p.days) state.days = p.days;
-        if (Array.isArray(p.tracks)) state.tracks = p.tracks;
         if (Array.isArray(p.resolve)) state.resolve = p.resolve;
         if (typeof p.resolved === 'number') state.resolved = p.resolved;
         if (Array.isArray(p.problems)) state.problems = p.problems;
@@ -61,10 +80,12 @@ window.VS = (function () {
       // brand-new install: seed the one problem we know was solved on day 1
       state.problems = [{
         id: 'p' + Date.now(),
-        name: 'Minimum Knight Moves', url: '', topic: 'BFS', diff: 'Medium',
+        name: 'Minimum Knight Moves', url: '', track: 'Algorithm', topic: 'BFS', diff: 'Medium',
         notes: '', date: '2026-07-08', lastReview: null
       }];
     }
+    // migration: entries logged before tracks existed are algorithm problems
+    (state.problems || []).forEach(p => { if (!p.track) p.track = 'Algorithm'; });
   }
 
   function save() {
@@ -73,20 +94,41 @@ window.VS = (function () {
   }
 
   function dayState(k) { return state.days[k] || {}; }
-  function isMin(ds) { return !!(ds.algo && ds.kotlin); }
-  function isFull(ds) { return !!(ds.algo && ds.kotlin && ds.third && ds.closeout); }
+  function isMin(ds) { return !!(ds.algo && ds.kotlin && ds.sysdesign); }
+  function isFull(ds) { return !!(ds.algo && ds.kotlin && ds.sysdesign && ds.closeout); }
 
+  // Current streak: consecutive days (ending today or yesterday) with the minimum done.
   function streak() {
     let s = 0;
-    let i = DAYS.indexOf(activeKey());
-    if (i < 0) return 0;
-    if (!isMin(dayState(DAYS[i]))) i--;
-    for (; i >= 0; i--) { if (isMin(dayState(DAYS[i]))) s++; else break; }
+    const d = new Date(); d.setHours(12, 0, 0, 0);
+    let k = iso(d);
+    if (!isMin(dayState(k))) { d.setDate(d.getDate() - 1); k = iso(d); }
+    while (isMin(dayState(k))) {
+      s++;
+      d.setDate(d.getDate() - 1);
+      k = iso(d);
+    }
     return s;
   }
-  function daysLeft() {
-    const now = new Date(); now.setHours(0, 0, 0, 0);
-    return Math.max(0, Math.round((END - now) / 86400000));
+  // Longest streak ever, scanning actual logged days (calendar-adjacent, not just array order).
+  function longestStreak() {
+    const doneDays = Object.keys(state.days).filter(k => isMin(state.days[k])).sort();
+    let longest = 0, run = 0, prev = null;
+    doneDays.forEach(k => {
+      if (prev) {
+        const diff = Math.round((new Date(k + 'T12:00:00') - new Date(prev + 'T12:00:00')) / 86400000);
+        run = diff === 1 ? run + 1 : 1;
+      } else run = 1;
+      longest = Math.max(longest, run);
+      prev = k;
+    });
+    return longest;
+  }
+  function totalActiveDays() {
+    return Object.keys(state.days).filter(k => {
+      const d = state.days[k];
+      return !!(d && (d.algo || d.kotlin || d.sysdesign || d.closeout));
+    }).length;
   }
   function esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -99,11 +141,13 @@ window.VS = (function () {
       if (a.getAttribute('data-page') === page) a.classList.add('active');
     });
   }
+  function trackDef(id) { return TRACK_DEFS.find(t => t.id === id) || TRACK_DEFS[0]; }
 
   return {
-    KEY, DAYS, FRIDAYS, TOPICS, TOPIC_TRACK, DEFAULT_TRACKS, CHECKS,
+    KEY, TRACK_DEFS, ALGO_TOPICS, KOTLIN_TOPICS, SYSDESIGN_TOPICS, CHECKS, DOW_LABELS,
     state: () => state, load, save,
-    iso, todayIso, activeKey, dayState, isMin, isFull,
-    streak, daysLeft, esc, fmtDate, markNav
+    iso, todayIso, gridDays, isRevisitDay, isFuture,
+    dayState, isMin, isFull, streak, longestStreak, totalActiveDays,
+    esc, fmtDate, markNav, trackDef
   };
 })();

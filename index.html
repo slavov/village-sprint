@@ -67,6 +67,12 @@
   </div>
 
   <div class="card">
+    <h2>Kotlin queue <span class="meta" id="kqMeta"></span></h2>
+    <div class="thint">Solved something today? It lands here — rewrite it in Kotlin tomorrow morning.</div>
+    <div id="kqList"></div>
+  </div>
+
+  <div class="card">
     <h2>Close-out <span class="meta">2 lines · 10 min</span></h2>
     <label class="f" for="well">One concrete thing that went well</label>
     <textarea id="well" placeholder="e.g. traced the BFS queue correctly without running it"></textarea>
@@ -213,6 +219,45 @@
       document.getElementById('well').value = co.well || '';
       document.getElementById('fix').value = co.fix || '';
     }
+
+    renderKotlinQueue();
+  }
+
+  function renderKotlinQueue() {
+    const t = VS.todayIso();
+    const items = (S.kotlinQueue || []).slice().sort((a, b) => (a.due < b.due ? -1 : 1));
+    document.getElementById('kqMeta').textContent = items.length + ' queued';
+    const list = document.getElementById('kqList');
+    if (items.length === 0) {
+      list.innerHTML = '<div class="empty">Empty. Log an algorithm problem and it shows up here the next day.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    items.forEach(it => {
+      const row = document.createElement('div');
+      let dueTxt;
+      if (it.due < t) { row.className = 'rs-item overdue'; dueTxt = 'overdue'; }
+      else if (it.due === t) { row.className = 'rs-item duetoday'; dueTxt = 'due today'; }
+      else { row.className = 'rs-item'; dueTxt = VS.fmtDate(it.due); }
+      row.innerHTML = '<div class="nm">' + VS.esc(it.n) + '</div><div class="due">' + dueTxt + '</div>';
+      const ok = document.createElement('button');
+      ok.className = 'mini'; ok.textContent = '✓';
+      ok.setAttribute('aria-label', 'rewrote ' + it.n + ' in Kotlin');
+      ok.onclick = () => {
+        S.kotlinQueue = S.kotlinQueue.filter(x => x !== it);
+        const cur = VS.dayState(t);
+        cur.kotlin = true;
+        S.days[t] = cur;
+        S.problems = S.problems || [];
+        S.problems.push({
+          id: 'p' + Date.now(), name: it.n, url: '', track: 'Kotlin', topic: it.topic || 'Koans',
+          diff: 'Medium', notes: '', date: t, lastReview: null
+        });
+        VS.save(); render();
+      };
+      row.appendChild(ok);
+      list.appendChild(row);
+    });
   }
 
   document.getElementById('probInput').addEventListener('change', () => {

@@ -107,8 +107,9 @@
       o.value = t; o.textContent = t;
       sel.appendChild(o);
     });
-    document.getElementById('tickHint').textContent =
-      'Adding this also ticks today’s "' + VS.trackDef(formTrack).id + '" checklist box.';
+    document.getElementById('tickHint').textContent = formTrack === 'Algorithm'
+      ? 'Adding this ticks today’s "Algorithm" box and queues a Kotlin rewrite for tomorrow.'
+      : 'Adding this also ticks today’s "' + VS.trackDef(formTrack).id + '" checklist box.';
   }
 
   // list filter tabs
@@ -208,6 +209,9 @@
     cur[VS.trackDef(formTrack).check] = true;
     if (formTrack === 'Algorithm' && !cur.problem) cur.problem = name;
     S.days[k] = cur;
+
+    // algorithm problems queue up for a Kotlin rewrite, due tomorrow
+    if (formTrack === 'Algorithm') VS.queueKotlin(name, p.topic);
 
     VS.save();
     document.getElementById('pName').value = '';

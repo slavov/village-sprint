@@ -61,7 +61,8 @@ window.VS = (function () {
     days: {},
     resolve: [],
     resolved: 0,
-    problems: []
+    problems: [],
+    kotlinQueue: []
   };
 
   function load() {
@@ -74,6 +75,7 @@ window.VS = (function () {
         if (Array.isArray(p.resolve)) state.resolve = p.resolve;
         if (typeof p.resolved === 'number') state.resolved = p.resolved;
         if (Array.isArray(p.problems)) state.problems = p.problems;
+        if (Array.isArray(p.kotlinQueue)) state.kotlinQueue = p.kotlinQueue;
         if (p.timer && p.timer.end > Date.now()) state.timer = p.timer;
       } catch (e) { /* corrupted state — start fresh rather than crash */ }
     } else {
@@ -143,11 +145,18 @@ window.VS = (function () {
   }
   function trackDef(id) { return TRACK_DEFS.find(t => t.id === id) || TRACK_DEFS[0]; }
 
+  // Queue an algorithm problem for a Kotlin rewrite, due tomorrow morning.
+  function queueKotlin(name, topic) {
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    state.kotlinQueue = state.kotlinQueue || [];
+    state.kotlinQueue.push({ id: 'kq' + Date.now(), n: name, topic: topic || 'Koans', due: iso(d) });
+  }
+
   return {
     KEY, TRACK_DEFS, ALGO_TOPICS, KOTLIN_TOPICS, SYSDESIGN_TOPICS, CHECKS, DOW_LABELS,
     state: () => state, load, save,
     iso, todayIso, gridDays, isRevisitDay, isFuture,
     dayState, isMin, isFull, streak, longestStreak, totalActiveDays,
-    esc, fmtDate, markNav, trackDef
+    esc, fmtDate, markNav, trackDef, queueKotlin
   };
 })();
